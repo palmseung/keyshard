@@ -1,88 +1,92 @@
 # keyshard
 
-Shamir's Secret Sharing 기반 키 보호/복구 Go 라이브러리.
+A Go library for key protection and recovery based on Shamir's Secret Sharing.
 
-비밀을 N개 조각으로 분할하고, 그 중 T개만 있으면 원본을 복원할 수 있습니다. AT Protocol DID rotation key 복구, 암호화폐 지갑 시드 보관, 비밀번호 상속 등에 사용할 수 있습니다.
+Split a secret into N shares and recover the original with any T of them. Useful for AT Protocol DID rotation key recovery, cryptocurrency wallet seed custody, password inheritance, and more.
 
-## 패키지 구성
+## Packages
 
 ```
 keyshard/
 ├── shamir/    # Shamir Secret Sharing — Split/Combine
-├── crypto/    # AES-256-GCM 암호화 + Shamir — Seal/Unseal
+├── crypto/    # AES-256-GCM encryption + Shamir — Seal/Unseal
 └── did/       # AT Protocol DID — Resolve/Verify/Protect/Recover
 ```
 
-## 사용법
+## Usage
 
-### 기본: 비밀 분할/복원
+### Basic: Split & Combine
 
 ```go
 import "github.com/palmseung/keyshard/shamir"
 
-// 비밀을 5개 조각으로 분할 (3개면 복원 가능)
+// Split a secret into 5 shares (3 required to recover)
 result, _ := shamir.Split([]byte("my-secret"), 5, 3)
 
-// 아무 3개 조각으로 복원
+// Recover with any 3 shares
 recovered, _ := shamir.Combine(result.Shares[:3])
 // recovered == []byte("my-secret")
 ```
 
-### 암호화 + 분할
+### Encrypt + Split
 
 ```go
 import "github.com/palmseung/keyshard/crypto"
 
-// 비밀을 AES-256-GCM으로 암호화 후 키를 Shamir로 분할
+// Encrypt with AES-256-GCM, then split the key with Shamir
 sealed, _ := crypto.Seal([]byte("my-secret"), 5, 3)
 
-// envelope (암호문) + 조각 3개로 복원
+// Recover with the envelope (ciphertext) + any 3 shares
 recovered, _ := crypto.Unseal(sealed.Envelope, sealed.Shares[:3])
 ```
 
-### DID 키 보호
+### DID Key Protection
 
 ```go
 import "github.com/palmseung/keyshard/did"
 
-// DID document 조회
+// Resolve a DID document
 doc, _ := did.Resolve("did:plc:abc123...")
 handle, _ := did.Handle(doc)       // "user.bsky.social"
 pds, _ := did.PDSEndpoint(doc)     // "https://bsky.social"
 
-// DID 소유권 서명 검증
+// Verify DID ownership via signature
 err := did.VerifySignature(doc, challenge, signature)
 
-// rotation key를 가디언에게 분배
+// Distribute a rotation key to guardians
 guardians := []string{"did:plc:guardian1", "did:plc:guardian2", "did:plc:guardian3"}
 protected, _ := did.Protect("did:plc:owner", "rotation", rotationKeyBytes, guardians, 2)
-// → 3개 share, 2개면 복구 가능
+// → 3 shares, 2 required to recover
 
-// 복구
+// Recover
 rawShares := did.ExtractShares(submittedShares)
 recovered, _ := did.Recover(protected.Envelope, rawShares)
 ```
 
-## DID 서명 검증
+## DID Signature Verification
 
-챌린지-응답 방식으로 DID 소유권을 증명합니다.
+Proves DID ownership via challenge-response:
 
-1. 서버가 랜덤 nonce 발급
-2. 클라이언트가 DID signing key로 nonce에 ECDSA 서명
-3. 서버가 DID document의 공개키로 서명 검증
+1. Server issues a random nonce
+2. Client signs the nonce with their DID signing key (ECDSA)
+3. Server verifies the signature against the public key in the DID document
 
-지원 키 타입:
-- **P-256** (secp256r1) — AT Protocol 기본
-- **secp256k1** — 파싱만 지원 (검증은 go-ethereum 커브 필요)
+Supported key types:
+- **P-256** (secp256r1) — AT Protocol default
+- **secp256k1** — parsing only (verification requires go-ethereum curve)
 
-## 설치
+## Install
 
 ```bash
 go get github.com/palmseung/keyshard
 ```
 
-## 테스트
+## Test
 
 ```bash
 go test ./...
 ```
+
+## License
+
+MIT
